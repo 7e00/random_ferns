@@ -1,7 +1,11 @@
-//#include <armadillo>
+#ifndef FERNS_H
+#define FERNS_H
+
+#include <stdlib.h>
 
 #ifndef RAND_MAX
 #define RAND_MAX 65535
+#endif // RAND_MAX
 
 class Binary_feature
 {
@@ -71,7 +75,7 @@ public:
         int off = pos % nbits;
         fea[p] &= ~(1u<<(nbits-1-off));
     }
-    virtual Binary_feature *copy_self() = 0;
+    virtual Binary_feature *copy_self() const = 0;
     virtual void get_feature(double *vec, int veclen) = 0;
 };
 
@@ -87,6 +91,14 @@ public:
         id = new int[fea_num<<1];
         thrs = new double[fea_num];
     }
+    Diff_Binary_feature(int num, int veclen, double (*range)[2]) : Binary_feature(num)
+    {
+        set_random(veclen, range);
+    }
+    Diff_Binary_feature(int num, int veclen, double inf, double sup) : Binary_feature(num)
+    {
+        set_random(veclen, inf, sup);
+    }
     Diff_Binary_feature(int num, int *aid, double *athrs) : Binary_feature(num)
     {
         id = new int[fea_num<<1];
@@ -94,7 +106,7 @@ public:
         memcpy(id, aid, sizeof(int)*(fea_num<<1));
         memcpy(thrs, athrs, sizeof(double)*fea_num);
     }
-    Diff_Binary_feature(const Diff_Binary_feature &dbf) : Binary_feature(df)
+    Diff_Binary_feature(const Diff_Binary_feature &dbf) : Binary_feature(dbf)
     {
         id = new int[fea_num<<1];
         thrs = new double[fea_num];
@@ -110,30 +122,32 @@ public:
     }
     void set_param(int *aid, double *athrs)
     {
-        memcpy(id, aid, sizeof(int)*(s<<1));
-        memcpy(thrs, athrs, sizeof(double)*s);
+        memcpy(id, aid, sizeof(int)*(fea_num<<1));
+        memcpy(thrs, athrs, sizeof(double)*fea_num);
     }
     void set_random(int veclen, double (*range)[2])
     {
-        for (int i = 0; i < s; ++i)
+        for (int i = 0; i < fea_num; ++i)
         {
             id[i<<1] = rand()%veclen;
             id[i<<1|1] = rand()%veclen;
-            thrs[i] = range[i][0] + (range[i][1]-range[i][0])*(rand()%RANDMAX) / (double)(RAND_MAX-1);
+            thrs[i] = range[i][0] + (range[i][1]-range[i][0])*(rand()%RAND_MAX) / (double)(RAND_MAX-1);
         }
     }
     void set_random(int veclen, double inf, double sup)
     {
-        for (int i = 0; i < s; ++i)
+        for (int i = 0; i < fea_num; ++i)
         {
             id[i<<1] = rand()%veclen;
             id[i<<1|1] = rand()%veclen;
             thrs[i] = inf + (sup-inf)*(rand()%RAND_MAX) / (double)(RAND_MAX-1);
         }
     }
-    virtual Binary_feature *copy_self()
+    virtual Binary_feature *copy_self() const
     {
+        //std::cout<<"in copyself of diff"<<std::endl;
         Diff_Binary_feature *dbf = new Diff_Binary_feature(*this);
+
         return dbf;
     }
     virtual void get_feature(double *vec, int veclen)
@@ -166,11 +180,16 @@ private:
             delete bf;
         bf = 0;
         int len = H*(1<<depth);
-        if (prob && H != class_num)
+        if (prob)
         {
-            delete []prob;
-            prob = new double[len];
+            if (H != class_num)
+            {
+                delete []prob;
+                prob = new double[len];
+            }
         }
+        else
+            prob = new double[len];
         class_num = H;
         for (int i = 0; i < len; prob[i++]=0);
     }
@@ -187,14 +206,15 @@ public:
             delete []prob;
     }
 
-    double train(double *X, int *C, int N, int K, int H, Binary_Feature &getfea, int reg = 1)
+    double train(double *X, int *C, int N, int K, int H, Binary_feature *getfea, int reg = 1)
     {
         preproc(H);
         int n = 1<<depth;
-        bf = getfea.copy_self();
+        bf = getfea->copy_self();
         double *vec = X;
 
         int *cnt = new int[H];
+        memset(cnt, 0, sizeof(int)*H);
         for (int i = 0; i < N; ++i)
         {
             bf->get_feature(vec, K);
@@ -210,7 +230,6 @@ public:
             for (int j = 0; j < H; ++j)
             {
                 prob[idx] = (prob[idx] + reg)/ ((double)cnt[j] + n*reg);
-                //prob[idx] = log(prob[idx]);
                 ++idx;
             }
         }
@@ -244,7 +263,10 @@ public:
         double *vec = X;
         int rn = 0;
         for (int i = 0; i < N; ++i)
+        {
             rn += (classify(vec, K) == C[i]);
+            vec += K;
+        }
         return (double)rn / (double)N;
     }
 };
@@ -266,11 +288,16 @@ private:
             delete bf;
         bf = 0;
         int len = H*(1<<depth)*m;
-        if (prob && H != class_num)
+        if (prob)
         {
-            delete []prob;
-            prob = new double[len];
+            if (H != class_num)
+            {
+                delete []prob;
+                prob = new double[len];
+            }
         }
+        else
+            prob = new double[len];
         class_num = H;
         for (int i = 0; i < len; prob[i++]=0);
     }
@@ -278,14 +305,15 @@ public:
     RandomFerns(int fern_num, int fern_depth) : m(fern_num), depth(fern_depth), class_num(0), prob(0), bf(0)
     {
     }
-    double train(double *X, int *C, int N, int K, int H, Binary_Feature &bf, int reg = 1)
+    double train(double *X, int *C, int N, int K, int H, Binary_feature *getfea, int reg = 1)
     {
         preproc(H);
         int n = 1<<depth;
-        bf = getfea.copy_self();
+        bf = getfea->copy_self();
         double *vec = X;
 
         int *cnt = new int[H];
+        memset(cnt, 0, sizeof(int)*H);
         for (int i = 0; i < N; ++i)
         {
             bf->get_feature(vec, K);
@@ -312,7 +340,9 @@ public:
             }
         }
 
-        return 0;
+        delete []cnt;
+
+        return evaluate(X, C, N, K);
     }
 
     int classify(double *vec, int veclen, double *cprob = 0)
@@ -327,7 +357,7 @@ public:
             double iprob = 0; //iprob = log(P(F=feature|C = i))
             for (int j = 0; j < m; ++j)
             {
-                unsigned id = bf.get_binary(j*depth, j*depth+depth-1);
+                unsigned id = bf->get_binary(j*depth, j*depth+depth-1);
                 iprob += prob[j*n*class_num + id*class_num + i];
             }
             if (i == 0 || iprob > maxprob)
@@ -346,7 +376,12 @@ public:
         double *vec = X;
         int rn = 0;
         for (int i = 0; i < N; ++i)
+        {
             rn += (classify(vec, K) == C[i]);
+            vec += K;
+        }
         return (double)rn / (double)N;
     }
 };
+
+#endif // FERNS_H
