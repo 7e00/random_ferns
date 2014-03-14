@@ -1,7 +1,8 @@
 #ifndef FERNS_H
 #define FERNS_H
 
-#include <stdlib.h>
+#include <cstdlib>
+#include <cmath>
 
 #ifndef RAND_MAX
 #define RAND_MAX 65535
@@ -93,10 +94,14 @@ public:
     }
     Diff_Binary_feature(int num, int veclen, double (*range)[2]) : Binary_feature(num)
     {
+        id = new int[fea_num<<1];
+        thrs = new double[fea_num];
         set_random(veclen, range);
     }
     Diff_Binary_feature(int num, int veclen, double inf, double sup) : Binary_feature(num)
     {
+        id = new int[fea_num<<1];
+        thrs = new double[fea_num];
         set_random(veclen, inf, sup);
     }
     Diff_Binary_feature(int num, int *aid, double *athrs) : Binary_feature(num)
