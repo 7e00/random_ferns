@@ -258,13 +258,16 @@ public:
         return c;
     }
 
-    double evaluate(double *X, int *C, int N, int K)
+    double evaluate(double *X, int *C, int N, int K, int *predict = 0)
     {
         double *vec = X;
         int rn = 0;
         for (int i = 0; i < N; ++i)
         {
-            rn += (classify(vec, K) == C[i]);
+            int pred = classify(vec, K);
+            if (predict)
+                predict[i] = pred;
+            rn += (pred == C[i]);
             vec += K;
         }
         return (double)rn / (double)N;
@@ -371,13 +374,16 @@ public:
         return c;
     }
 
-    double evaluate(double *X, int *C, int N, int K)
+    double evaluate(double *X, int *C, int N, int K, int *predict = 0)
     {
         double *vec = X;
         int rn = 0;
         for (int i = 0; i < N; ++i)
         {
-            rn += (classify(vec, K) == C[i]);
+            int pred = classify(vec, K);
+            if (predict)
+                predict[i] = pred;
+            rn += (pred == C[i]);
             vec += K;
         }
         return (double)rn / (double)N;
